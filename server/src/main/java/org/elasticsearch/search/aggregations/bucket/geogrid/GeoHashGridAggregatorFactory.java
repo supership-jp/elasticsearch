@@ -42,14 +42,16 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final int minDocCount;
 
-    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-            int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize, int shardSize, 
+	    int minDocCount, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
     }
 
     @Override
@@ -72,7 +74,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
             return asMultiBucketAggregator(this, context, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision);
-        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
+        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, minDocCount, context, parent,
                 pipelineAggregators, metaData);
 
     }

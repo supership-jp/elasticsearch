@@ -145,12 +145,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     }
 
     private final int requiredSize;
+    private final int minDocCount;
     private final List<Bucket> buckets;
 
-    InternalGeoHashGrid(String name, int requiredSize, List<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    InternalGeoHashGrid(String name, int requiredSize, int minDocCount, List<Bucket> buckets,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
         this.buckets = buckets;
     }
 
@@ -160,12 +162,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     public InternalGeoHashGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
+        minDocCount = readSize(in);
         buckets = in.readList(Bucket::new);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
+        writeSize(minDocCount, out);
         out.writeList(buckets);
     }
 
@@ -176,7 +180,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public InternalGeoHashGrid create(List<Bucket> buckets) {
-        return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.pipelineAggregators(), this.metaData);
+        return new InternalGeoHashGrid(this.name, this.requiredSize, this.minDocCount, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -211,11 +215,16 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
-            Bucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
-            if (removed != null) {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+	    final Bucket b = sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext);
+	    if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
+                Bucket removed = ordered.insertWithOverflow(b);
+                if (removed != null) {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                }
             } else {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
         }
         buckets.close();
@@ -223,7 +232,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
+        return new InternalGeoHashGrid(getName(), requiredSize, minDocCount, Arrays.asList(list), pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -243,13 +252,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(requiredSize, buckets);
+        return Objects.hash(requiredSize, minDocCouht, buckets);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalGeoHashGrid other = (InternalGeoHashGrid) obj;
         return Objects.equals(requiredSize, other.requiredSize) &&
+            Objects.equals(minDocCount, other.minDocCount) &&
             Objects.equals(buckets, other.buckets);
     }
 

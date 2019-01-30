@@ -29,6 +29,7 @@ final class GeoHashGridParams {
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
+    static final ParseField FIELD_MIN_DOC_COUNT = new ParseField("min_doc_count");
 
     private GeoHashGridParams() {
         throw new AssertionError("No instances intended");

@@ -59,6 +59,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     public static final String NAME = "geohash_grid";
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
+    public static final int DEFAULT_MIN_DOC_COUNT = 1;
 
     private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER;
     static {
@@ -68,6 +69,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         PARSER.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
         PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
+        PARSER.declareInt(GeoGridAggregationBuilder::minDocCount, GeoHashGridParams.FIELD_MIN_DOC_COUNT);
     }
 
     public static GeoGridAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -77,6 +79,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     private int precision = DEFAULT_PRECISION;
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
+    private int minDocCount = DEFAULT_MIN_DOC_COUNT;
 
     public GeoGridAggregationBuilder(String name) {
         super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
@@ -87,6 +90,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         this.precision = clone.precision;
         this.requiredSize = clone.requiredSize;
         this.shardSize = clone.shardSize;
+        this.minDocCount = clone.minDocCount;
     }
 
     @Override
@@ -102,6 +106,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
+        minDocCount = in.readVInt();
     }
 
     @Override
@@ -109,6 +114,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
+        out.writeVInt(minDocCount);
     }
 
     public GeoGridAggregationBuilder precision(int precision) {
@@ -140,10 +146,23 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
             }
         this.shardSize = shardSize;
         return this;
-        }
+    }
 
     public int shardSize() {
         return shardSize;
+    }
+
+    public GeoGridAggregationBuilder minDocCount(int minDocCount) {
+        if (minDocCount <= 0) {
+            throw new IllegalArgumentException(
+                    "[minDocCount] must be greater than 0. Found [" + minDocCount + "] in [" + name + "]");
+            }
+        this.minDocCount = minDocCount;
+        return this;
+    }
+
+    public int minDocCount() {
+        return minDocCount;
     }
 
     @Override
@@ -168,7 +187,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
+        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, minDocCount context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -179,6 +198,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize > -1) {
             builder.field(GeoHashGridParams.FIELD_SHARD_SIZE.getPreferredName(), shardSize);
         }
+	builder.field(GeoHashGridParams.FIELD_MIN_DOC_COUNT.getPreferredName(), minDocCount);
         return builder;
     }
 
@@ -194,12 +214,15 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize != other.shardSize) {
             return false;
         }
+        if (minDocCount != other.minDocCount) {
+            return false;
+        }
         return true;
     }
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(precision, requiredSize, shardSize);
+        return Objects.hash(precision, requiredSize, shardSize, minDocCount);
     }
 
     @Override
