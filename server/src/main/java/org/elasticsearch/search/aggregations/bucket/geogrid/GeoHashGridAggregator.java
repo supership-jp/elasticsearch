@@ -54,6 +54,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 

@@ -252,7 +252,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(requiredSize, minDocCouht, buckets);
+        return Objects.hash(requiredSize, minDocCount, buckets);
     }
 
     @Override

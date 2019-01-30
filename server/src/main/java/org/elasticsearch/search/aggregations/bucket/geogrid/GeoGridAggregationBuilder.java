@@ -187,7 +187,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, minDocCount context, parent,
+        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, minDocCount, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
