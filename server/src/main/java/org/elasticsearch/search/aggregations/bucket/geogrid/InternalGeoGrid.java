@@ -46,11 +46,14 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
 
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
+    protected final long minDocCount;
 
-    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, List<PipelineAggregator> pipelineAggregators,
+    InternalGeoGrid(String name, int requiredSize, long minDocCount,
+                    List<InternalGeoGridBucket> buckets, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
         this.buckets = buckets;
     }
 
@@ -62,16 +65,18 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     public InternalGeoGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
+        minDocCount = in.readVLong();
         buckets = (List<InternalGeoGridBucket>) in.readList(getBucketReader());
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
+        out.writeVLong(minDocCount);
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
+    abstract InternalGeoGrid create(String name, int requiredSize, long minDocCount, List<InternalGeoGridBucket> buckets,
                                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     @Override
@@ -102,11 +107,16 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<B>> cursor : buckets) {
             List<B> sameCellBuckets = cursor.value;
-            InternalGeoGridBucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
-            if (removed != null) {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+            final B b = (B)sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext);
+            if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
+                InternalGeoGridBucket removed = ordered.insertWithOverflow(b);
+                if (removed != null) {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                }
             } else {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
         }
         buckets.close();
@@ -114,7 +124,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return create(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
+        return create(getName(), requiredSize, minDocCount, Arrays.asList(list), pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -134,7 +144,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), requiredSize, buckets);
+        return Objects.hash(super.hashCode(), requiredSize, minDocCount, buckets);
     }
 
     @Override
@@ -145,6 +155,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
 
         InternalGeoGrid other = (InternalGeoGrid) obj;
         return Objects.equals(requiredSize, other.requiredSize)
+            && Objects.equals(minDocCount, other.minDocCount)
             && Objects.equals(buckets, other.buckets);
     }
 

@@ -42,20 +42,22 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
+    private final long minDocCount;
 
     GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-            int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            int shardSize, long minDocCount, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.minDocCount = minDocCount;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
+        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, minDocCount,
                 Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
@@ -72,7 +74,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
             return asMultiBucketAggregator(this, context, parent);
         }
         CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, Geohash::longEncode);
-        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
+        return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, minDocCount, context, parent,
                 pipelineAggregators, metaData);
     }
 }
